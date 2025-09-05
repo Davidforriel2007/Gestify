@@ -1,7 +1,5 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from fastapi.websockets import WebSocketState
-import asyncio
-from ..services.gestures import MockGestureService
+from ..services.websocket_manager import manager
 
 
 router = APIRouter()
@@ -9,19 +7,13 @@ router = APIRouter()
 
 @router.websocket("/ws/gestures")
 async def websocket_gestures(ws: WebSocket):
-    await ws.accept()
-    service = MockGestureService()
     try:
-        async for event in service.stream_events(interval_seconds=5):
-            if ws.application_state != WebSocketState.CONNECTED:
-                break
-            await ws.send_json(event)
+        await manager.connect(ws)
+        while True:
+            # Keep the socket open; no need to receive messages in this direction
+            data = await ws.receive_text()
+            # Optional: handle ping/pong or client messages in the future
     except WebSocketDisconnect:
-        pass
-    finally:
-        try:
-            await ws.close()
-        except Exception:
-            pass
+        await manager.disconnect(ws)
 
 

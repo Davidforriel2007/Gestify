@@ -1,0 +1,7 @@
+{
+  "pinch_thumb_middle": "toggle_play",
+  "pinch_thumb_ring": "next_track",
+  "pinch_thumb_pinky": "previous_track",
+  "pinch_thumb_index": "volume_control"
+}
+
