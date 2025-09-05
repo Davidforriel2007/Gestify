@@ -1,0 +1,124 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# 🎶 Gesture-Controlled Spotify Music Web App – Project Rulebook
+
+## 🔹 1. Core Idea
+A web-based music player powered by Spotify Web Playback SDK, where:  
+- Music is streamed via Spotify Premium account.  
+- Hand gestures (captured with Mediapipe + OpenCV) control playback (play/pause, next, previous, volume).  
+- Gestures are mapped to actions using a shared JSON config file for consistency between backend and frontend.  
+
+---
+
+## 🔹 2. Architecture Overview
+[ Frontend - React ]
+   • UI for player + playlists
+   • Spotify Web Playback SDK for music playback
+   • WebSocket client (receives gesture events)
+   • Uses gesture-action mapping (JSON) for control
+
+        ▲
+        │ (WebSocket: pause, next, volume)
+        ▼
+
+[ Backend - FastAPI ]
+   • Spotify OAuth + token refresh
+   • REST APIs for playlists/tracks
+   • Gesture Service (Mediapipe + OpenCV)
+   • Loads gesture-action mapping (JSON)
+   • Emits mapped actions as JSON via WebSocket
+
+        ▼
+
+[ Spotify ]
+   • Web API (fetch playlists, track metadata)
+   • Web Playback SDK (embedded in frontend)
+   • Requires Spotify Premium
+
+---
+
+## 🔹 3. Gesture → Action Mapping (JSON Config)
+
+Example mappings:  
+- Thumb + Middle finger pinch → Toggle Play/Pause  
+- Thumb + Ring finger pinch → Next Track  
+- Thumb + Pinky finger pinch → Previous Track  
+- Thumb + Index finger distance → Volume Control (distance mapped to volume percentage)  
+
+---
+
+## 🔹 4. How JSON Mapping Works
+
+- Backend  
+  - Loads gestures.json at startup.  
+  - Detects gesture and looks up its action.  
+  - Emits an event such as "toggle_play" or "volume_control".  
+
+- Frontend  
+  - Receives WebSocket event.  
+  - Uses the action to call Spotify SDK methods like play, pause, skip, or set volume.  
+
+---
+
+## 🔹 5. Technology Stack
+
+- Frontend
+  - React (Vite or Next.js optional)
+  - TailwindCSS (UI styling)
+  - Spotify Web Playback SDK
+  - WebSocket client  
+
+- Backend
+  - FastAPI (REST + WebSocket)
+  - Mediapipe + OpenCV (gesture recognition)
+  - asyncio Queue (for sending gesture events)
+  - Spotify Web API (OAuth + metadata)  
+
+- Other
+  - OAuth 2.0 flow for Spotify login
+  - Docker (optional, for deployment)
+  - SQLite/Postgres (optional, if you add playlists/users)  
+
+---
+
+## 🔹 6. Development Steps
+
+1. Spotify Setup  
+   - Register app at Spotify Developer Dashboard.  
+   - Get client credentials.  
+   - Set redirect URI (e.g., http://localhost:8000/callback).  
+
+2. Backend  
+   - Implement Spotify OAuth (login, callback).  
+   - Implement playlist and track endpoints using Spotify Web API.  
+   - Implement WebSocket endpoint for gestures.  
+   - Adapt gesture detection code to emit events instead of OS key presses.  
+
+3. Frontend  
+   - Implement Spotify login button.  
+   - Initialize Spotify Web Playback SDK with access token.  
+   - Subscribe to backend WebSocket for gesture events.  
+   - Map gestures to SDK controls (toggle play, next track, set volume).  
+
+4. Testing  
+   - Try play/pause gesture → should pause/resume Spotify track.  
+   - Try volume pinch → should adjust Spotify volume.  
+   - Verify next/previous gestures.  
+
+---
+
+## 🔹 7. Benefits of JSON Mapping
+- Centralized configuration → no hardcoding gestures in code.  
+- Both backend and frontend stay in sync.  
+- Easy to extend (e.g., add gesture for shuffle or “like song”).  
+- Makes the system more flexible and maintainable.  
+
+---
+
+## 🔹 8. Limitations
+- Requires Spotify Premium for playback.  
+- No direct MP3 access (Spotify SDK handles all playback).  
+- Must deploy backend on HTTPS (Spotify SDK requires secure context).  
