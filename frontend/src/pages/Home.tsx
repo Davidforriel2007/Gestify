@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { PlayerBar } from '../components/PlayerBar/PlayerBar'
 import { Sidebar } from '../components/Sidebar/Sidebar'
 import { SongList } from '../components/SongList/SongList'
 import { VolumeOverlay } from '../components/VolumeOverlay/VolumeOverlay'
 import { useSpotifyPlayerContext } from '../context/SpotifyPlayerContext'
 import { useWebSocket } from '../hooks/useWebSocket'
+import { searchAll, fetchPlaylistDetail, type Playlist, type Track } from '../hooks/useSpotifyApi'
 
 export function Home() {
   const [isPlaying, setIsPlaying] = useState(false)
@@ -13,8 +14,19 @@ export function Home() {
   const [volume, setVolume] = useState(35)
   const [volumeVisible, setVolumeVisible] = useState(false)
   const [gesturesEnabled, setGesturesEnabled] = useState(false)
+  const [playlists, setPlaylists] = useState<Playlist[]>([
+    { id: '1', name: 'My Mix', tracksTotal: 0 },
+    { id: '2', name: 'Chill Vibes', tracksTotal: 0 },
+  ])
+  const [search, setSearch] = useState('')
+  const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null)
+  const [tracks, setTracks] = useState<Track[] | undefined>(undefined)
+  const [searchResults, setSearchResults] = useState<{ tracks: { id: string; title: string; artist: string; uri: string; albumArt?: string }[]; playlists: { id: string; name: string; cover?: string; tracksTotal?: number }[] } | null>(null)
+  const [searchLoading, setSearchLoading] = useState(false)
+  const latestTermRef = useRef<string>('')
+  const debounceRef = useRef<number | null>(null)
 
-  const { status, isLoggedIn, login, controls } = useSpotifyPlayerContext()
+  const { status, isLoggedIn, login, controls, token } = useSpotifyPlayerContext()
 
   const song = useMemo(
     () => ({
@@ -30,6 +42,53 @@ export function Home() {
     const id = setTimeout(() => setVolumeVisible(false), 2500)
     return () => clearTimeout(id)
   }, [volumeVisible])
+
+  useEffect(() => {
+    if (!isLoggedIn || !selectedPlaylistId) return
+    // For local playlists, tracks remain mocked; for Spotify playlist detail, fetch when selected from search
+    setTracks(undefined)
+  }, [isLoggedIn, selectedPlaylistId])
+
+  useEffect(() => {
+    const term = search.trim()
+    latestTermRef.current = term
+    if (debounceRef.current) window.clearTimeout(debounceRef.current)
+    if (!term) {
+      setSearchResults(null)
+      return
+    }
+    // Require login/token to perform Spotify search
+    if (!isLoggedIn || !token) {
+      setSearchResults({ tracks: [], playlists: [] })
+      return
+    }
+    // Debounce to reduce requests and avoid flicker while typing
+    debounceRef.current = window.setTimeout(() => {
+      const currentTerm = latestTermRef.current
+      if (!currentTerm) return
+      try { console.log('[Search] firing', currentTerm, { isLoggedIn, hasToken: Boolean(token) }) } catch {}
+      setSearchLoading(true)
+      searchAll(currentTerm)
+        .then((r) => {
+          // Only apply if the result is for the latest term
+          if (latestTermRef.current === currentTerm) {
+            setSearchResults(r)
+            setMode('list')
+            try { console.log('[Search] results', currentTerm, r?.tracks?.length, r?.playlists?.length) } catch {}
+          }
+        })
+        .catch((e) => {
+          try { console.error('[Search] error', e) } catch {}
+          if (latestTermRef.current === currentTerm) setSearchResults({ tracks: [], playlists: [] })
+        })
+        .finally(() => {
+          if (latestTermRef.current === currentTerm) setSearchLoading(false)
+        })
+    }, 250)
+    return () => {
+      if (debounceRef.current) window.clearTimeout(debounceRef.current)
+    }
+  }, [search, isLoggedIn, token])
 
   // WebSocket mappings (guarded by toggle to avoid unintended playback loops)
   useWebSocket('ws://127.0.0.1:8000/ws/gestures', {
@@ -71,6 +130,11 @@ export function Home() {
       <Sidebar
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
+        playlists={useMemo(() => playlists.filter(p => p.name.toLowerCase().includes(search.toLowerCase())), [playlists, search])}
+        selectedPlaylistId={selectedPlaylistId}
+        onSelectPlaylist={(id) => setSelectedPlaylistId(id)}
+        search={search}
+        onSearchChange={setSearch}
       />
 
       <main
@@ -90,7 +154,69 @@ export function Home() {
               </button>
             </div>
         </div>
-        <SongList mode={mode} />
+        {searchResults ? (
+          <div className="px-4 pb-6">
+            <div className="mb-4 text-xs uppercase tracking-wider text-neutral-400">Tracks</div>
+            {searchLoading && (
+              <div className="mb-3 text-xs text-neutral-400">Searching…</div>
+            )}
+            {!searchLoading && Array.isArray(searchResults.tracks) && searchResults.tracks.length === 0 && (
+              <div className="mb-6 text-sm text-neutral-400">No tracks found for "{search.trim()}"</div>
+            )}
+            <div className="overflow-hidden rounded-lg border border-white/5">
+              <table className="min-w-full divide-y divide-white/5" role="table">
+                <thead className="bg-white/5">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-neutral-400">#</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-neutral-400">Title</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-neutral-400">Artist</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {searchResults.tracks.map((t, i) => (
+                    <tr key={t.id} className="hover:bg-white/5 cursor-pointer" onClick={() => controls.playUri?.(t.uri)}>
+                      <td className="px-4 py-2 text-sm text-neutral-400">{i + 1}</td>
+                      <td className="px-4 py-2 text-sm flex items-center gap-3">
+                        {t.albumArt && <img src={t.albumArt} alt="art" className="h-8 w-8 rounded object-cover" />}
+                        <span className="truncate">{t.title}</span>
+                      </td>
+                      <td className="px-4 py-2 text-sm text-neutral-400 truncate">{t.artist}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-8 mb-4 text-xs uppercase tracking-wider text-neutral-400">Playlists</div>
+            {!searchLoading && Array.isArray(searchResults.playlists) && searchResults.playlists.length === 0 && (
+              <div className="mb-2 text-sm text-neutral-400">No playlists found</div>
+            )}
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {searchResults.playlists.map((p) => (
+                <button
+                  key={p.id}
+                  className="rounded-lg bg-white/5 p-3 text-left hover:bg-white/10"
+                  onClick={async () => {
+                    try {
+                      const detail = await fetchPlaylistDetail(p.id)
+                      setSelectedPlaylistId(detail.id)
+                      setMode('list')
+                      setSearchResults(null)
+                    } catch {}
+                  }}
+                >
+                  <div className="aspect-square w-full overflow-hidden rounded-md bg-white/10">
+                    {p.cover && <img src={p.cover} alt="cover" className="h-full w-full object-cover" />}
+                  </div>
+                  <div className="mt-2 truncate text-sm font-medium">{p.name}</div>
+                  <div className="text-xs text-neutral-400">{p.tracksTotal ?? 0} tracks</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <SongList mode={mode} tracks={tracks} />
+        )}
         <VolumeOverlay visible={volumeVisible} volume={volume} />
       </main>
     </div>

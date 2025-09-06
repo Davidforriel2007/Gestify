@@ -28,6 +28,7 @@ type SpotifyContextShape = {
     previous: () => Promise<void> | void
     togglePlay: () => Promise<void> | void
     setVolume: (v01: number) => Promise<void> | void
+    playUri?: (uri: string) => Promise<void> | void
   }
 }
 
@@ -93,33 +94,33 @@ export function SpotifyPlayerProvider(props: { children: React.ReactNode; backen
     setStatus({ kind: 'loading' })
     const player = new window.Spotify.Player({
       name: 'Gestify Player',
-      getOAuthToken: (cb) => cb(token),
+      getOAuthToken: (cb: (t: string) => void) => cb(token),
       volume: 0.5,
     })
 
-    player.addListener('ready', ({ device_id }) => {
+    player.addListener('ready', ({ device_id }: { device_id: string }) => {
       console.log('[Spotify SDK] ready', device_id)
       setStatus({ kind: 'ready', deviceId: device_id })
     })
-    player.addListener('not_ready', ({ device_id }) => {
+    player.addListener('not_ready', ({ device_id }: { device_id: string }) => {
       console.warn('[Spotify SDK] not_ready', device_id)
       setStatus({ kind: 'not_ready', deviceId: device_id })
     })
-    player.addListener('player_state_changed', (s) => {
+    player.addListener('player_state_changed', (s: any) => {
       console.log('[Spotify SDK] state_changed', s)
       setPlaybackState(s)
     })
-    player.addListener('initialization_error', ({ message }) => {
+    player.addListener('initialization_error', ({ message }: { message: string }) => {
       console.error('[Spotify SDK] initialization_error', message)
       setStatus({ kind: 'error', message })
     })
-    player.addListener('authentication_error', ({ message }) => {
+    player.addListener('authentication_error', ({ message }: { message: string }) => {
       console.error('[Spotify SDK] authentication_error', message)
       setStatus({ kind: 'error', message })
       localStorage.removeItem('spotify_access_token')
       setToken(null)
     })
-    player.addListener('account_error', ({ message }) => {
+    player.addListener('account_error', ({ message }: { message: string }) => {
       console.error('[Spotify SDK] account_error', message)
       setStatus({ kind: 'error', message })
     })
@@ -178,8 +179,25 @@ export function SpotifyPlayerProvider(props: { children: React.ReactNode; backen
       previous: async () => playerRef.current?.previousTrack?.(),
       togglePlay: async () => playerRef.current?.togglePlay?.(),
       setVolume: async (v01: number) => playerRef.current?.setVolume?.(Math.min(1, Math.max(0, v01))),
+      playUri: async (uri: string) => {
+        try {
+          // The Web Playback SDK can start playback when an active device exists
+          const accessToken = token as string | null
+          if (!accessToken) return
+          const deviceId = (status as any)?.deviceId as string | undefined
+          if (!deviceId) return
+          await fetch('https://api.spotify.com/v1/me/player/play?device_id=' + encodeURIComponent(deviceId), {
+            method: 'PUT',
+            headers: {
+              'Authorization': 'Bearer ' + accessToken,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ uris: [uri] }),
+          })
+        } catch {}
+      },
     }),
-    []
+    [status, token]
   )
 
   const value: SpotifyContextShape = {
