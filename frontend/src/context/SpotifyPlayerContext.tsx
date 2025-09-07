@@ -29,6 +29,7 @@ type SpotifyContextShape = {
     togglePlay: () => Promise<void> | void
     setVolume: (v01: number) => Promise<void> | void
     playUri?: (uri: string) => Promise<void> | void
+    seek?: (ms: number) => Promise<void> | void
   }
 }
 
@@ -88,13 +89,34 @@ export function SpotifyPlayerProvider(props: { children: React.ReactNode; backen
     }
   }, [])
 
+  const fetchBackendToken = useCallback(async () => {
+    try {
+      const res = await fetch(`${backendBaseUrl}/auth/access_token`)
+      if (!res.ok) throw new Error(`status ${res.status}`)
+      const json = await res.json()
+      return json?.access_token as string | undefined
+    } catch (e) {
+      try { console.error('[Spotify SDK] failed to get backend token', e) } catch {}
+      return undefined
+    }
+  }, [backendBaseUrl])
+
   const initializePlayer = useCallback(async () => {
     if (!token || !window.Spotify || playerRef.current) return
 
     setStatus({ kind: 'loading' })
     const player = new window.Spotify.Player({
       name: 'Gestify Player',
-      getOAuthToken: (cb: (t: string) => void) => cb(token),
+      getOAuthToken: async (cb: (t: string) => void) => {
+        // Prefer asking backend for a valid/refresh token to avoid reusing an expired one
+        const backendToken = await fetchBackendToken()
+        if (backendToken) {
+          cb(backendToken)
+          return
+        }
+        // Fallback to stored token
+        if (token) cb(token)
+      },
       volume: 0.5,
     })
 
@@ -139,7 +161,7 @@ export function SpotifyPlayerProvider(props: { children: React.ReactNode; backen
         return current
       })
     }, 10000)
-  }, [token])
+  }, [token, fetchBackendToken])
 
   // Initialize when SDK + token ready
   useEffect(() => {
@@ -196,6 +218,7 @@ export function SpotifyPlayerProvider(props: { children: React.ReactNode; backen
           })
         } catch {}
       },
+      seek: async (ms: number) => playerRef.current?.seek?.(Math.max(0, Math.floor(ms))),
     }),
     [status, token]
   )

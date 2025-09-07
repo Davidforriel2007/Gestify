@@ -16,3 +16,12 @@
   @apply opacity-0 transition-opacity duration-300;
 }
 
+/* Hide native scrollbars while preserving scroll */
+.scrollbar-hidden {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE 10+ */
+}
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import type { Playlist } from '../../hooks/useSpotifyApi'
 
 export function Sidebar(props: {
@@ -7,14 +7,16 @@ export function Sidebar(props: {
   playlists?: Playlist[]
   selectedPlaylistId?: string | null
   onSelectPlaylist?: (id: string) => void
+  onSelectHome?: () => void
   search: string
   onSearchChange: (v: string) => void
 }) {
-  const { collapsed, onToggleCollapse, playlists = [], selectedPlaylistId, onSelectPlaylist, search, onSearchChange } = props
+  const { collapsed, onToggleCollapse, playlists = [], selectedPlaylistId, onSelectPlaylist, onSelectHome, search, onSearchChange } = props
+  const [playlistsOpen, setPlaylistsOpen] = useState(true)
   return (
     <aside
       className={
-        'fixed left-0 top-16 bottom-0 flex flex-col border-r border-white/5 bg-surface-300/60 backdrop-blur transition-all duration-300 ' +
+        'fixed left-0 top-0 bottom-0 flex flex-col border-r border-white/5 bg-surface-300/60 backdrop-blur transition-all duration-300 ' +
         (collapsed ? 'w-16' : 'w-64')
       }
     >
@@ -39,8 +41,34 @@ export function Sidebar(props: {
         />
       </div>
       <nav className="mt-2 flex-1 space-y-1 px-2 overflow-y-auto">
-        {!collapsed && <div className="px-3 py-1 text-xs uppercase tracking-wider text-neutral-400">Playlists</div>}
-        {playlists.map((p) => (
+        {/* Home entry */}
+        <button
+          onClick={() => onSelectHome?.()}
+          className={
+            'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm hover:bg-white/10 transition-[padding] ' +
+            (collapsed ? 'justify-center' : '')
+          }
+          title="Home"
+        >
+          <span className="inline-block h-5 w-5 rounded bg-white/20" aria-hidden="true" />
+          {!collapsed && <span className="truncate">Home</span>}
+        </button>
+
+        {/* Playlists section header */}
+        <button
+          onClick={() => setPlaylistsOpen((o) => !o)}
+          className={
+            'mt-2 flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-xs uppercase tracking-wider text-neutral-400 hover:bg-white/5 ' +
+            (collapsed ? 'hidden' : '')
+          }
+          aria-expanded={playlistsOpen}
+        >
+          <span>Playlists</span>
+          <span className={'transition-transform ' + (playlistsOpen ? 'rotate-0' : '-rotate-90')}>▾</span>
+        </button>
+
+        {/* Playlists list */}
+        {playlistsOpen && playlists.map((p) => (
           <button
             key={p.id}
             onClick={() => onSelectPlaylist?.(p.id)}

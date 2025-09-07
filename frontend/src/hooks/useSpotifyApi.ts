@@ -15,7 +15,7 @@ export type Track = {
 }
 
 export async function fetchPlaylists(): Promise<Playlist[]> {
-  const res = await fetch(`${BACKEND}/api/me/playlists`)
+  const res = await fetch(`${BACKEND}/api/me/playlists`, { headers: authHeaders() })
   if (!res.ok) throw new Error(`Failed to load playlists: ${res.status}`)
   const json = await res.json()
   const items = Array.isArray(json.items) ? json.items : []
@@ -23,7 +23,7 @@ export async function fetchPlaylists(): Promise<Playlist[]> {
 }
 
 export async function fetchPlaylistTracks(playlistId: string): Promise<Track[]> {
-  const res = await fetch(`${BACKEND}/api/playlists/${playlistId}/tracks`)
+  const res = await fetch(`${BACKEND}/api/playlists/${playlistId}/tracks`, { headers: authHeaders() })
   if (!res.ok) throw new Error(`Failed to load tracks: ${res.status}`)
   const json = await res.json()
   const items = Array.isArray(json.items) ? json.items : []

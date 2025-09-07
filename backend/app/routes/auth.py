@@ -1,6 +1,12 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import RedirectResponse
-from ..services.auth import get_authorize_url, exchange_code_for_token, token_store
+from ..services.auth import (
+    get_authorize_url,
+    exchange_code_for_token,
+    token_store,
+    get_valid_access_token,
+    refresh_access_token,
+)
 
 
 router = APIRouter()
@@ -36,5 +42,23 @@ async def token_status():
         "scope": t.get("scope"),
         "has_refresh_token": bool(t.get("refresh_token")),
     }
+
+
+@router.get("/auth/access_token")
+async def access_token(force_refresh: bool = False):
+    """Return a valid access token, refreshing if necessary.
+    Frontend SDK can call this to avoid reusing expired tokens.
+    """
+    try:
+        if force_refresh:
+            refreshed = await refresh_access_token()
+            return {"access_token": refreshed.get("access_token")}
+        token = get_valid_access_token()
+        if token:
+            return {"access_token": token}
+        refreshed = await refresh_access_token()
+        return {"access_token": refreshed.get("access_token")}
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Unable to refresh token: {e}")
 
 
