@@ -13,16 +13,24 @@ def _log_search_result(query: str, label: str, data: Dict[str, Any]) -> None:
     try:
         tracks = (data or {}).get("tracks", {}).get("items", []) or []
         playlists = (data or {}).get("playlists", {}).get("items", []) or []
+        albums = (data or {}).get("albums", {}).get("items", []) or []
+        artists = (data or {}).get("artists", {}).get("items", []) or []
         track_titles = [str(t.get("name")) for t in tracks[:3] if isinstance(t, dict)]
         playlist_names = [str(p.get("name")) for p in playlists[:3] if isinstance(p, dict)]
+        album_names = [str(a.get("name")) for a in albums[:3] if isinstance(a, dict)]
+        artist_names = [str(a.get("name")) for a in artists[:3] if isinstance(a, dict)]
         logger.info(
-            "[Spotify search] %s q=%r tracks=%d %s playlists=%d %s",
+            "[Spotify search] %s q=%r tracks=%d %s playlists=%d %s albums=%d %s artists=%d %s",
             label,
             query,
             len(tracks) if isinstance(tracks, list) else 0,
             track_titles,
             len(playlists) if isinstance(playlists, list) else 0,
             playlist_names,
+            len(albums) if isinstance(albums, list) else 0,
+            album_names,
+            len(artists) if isinstance(artists, list) else 0,
+            artist_names,
         )
     except Exception as e:
         logger.warning("[Spotify search] logging failed: %s", e)
@@ -74,14 +82,14 @@ async def search_global(query: str, limit: int = 10, token_override: Optional[st
     async with await _authorized_client(token_override) as client:
         resp = await client.get(
             f"{SPOTIFY_API}/search",
-            params={"q": query, "type": "track,playlist", "limit": limit, "market": "from_token"},
+            params={"q": query, "type": "track,playlist,album,artist", "limit": limit, "market": "from_token"},
         )
         if resp.status_code == 401:
             await refresh_access_token()
             async with await _authorized_client(token_override) as client2:
                 resp = await client2.get(
                     f"{SPOTIFY_API}/search",
-                    params={"q": query, "type": "track,playlist", "limit": limit, "market": "from_token"},
+                    params={"q": query, "type": "track,playlist,album,artist", "limit": limit, "market": "from_token"},
                 )
         resp.raise_for_status()
         data = resp.json()
@@ -90,12 +98,14 @@ async def search_global(query: str, limit: int = 10, token_override: Optional[st
         try:
             tracks_empty = not (data.get("tracks", {}).get("items"))
             playlists_empty = not (data.get("playlists", {}).get("items"))
+            albums_empty = not (data.get("albums", {}).get("items"))
+            artists_empty = not (data.get("artists", {}).get("items"))
         except Exception:
-            tracks_empty = playlists_empty = False
-        if tracks_empty and playlists_empty:
+            tracks_empty = playlists_empty = albums_empty = artists_empty = False
+        if tracks_empty and playlists_empty and albums_empty and artists_empty:
             resp2 = await client.get(
                 f"{SPOTIFY_API}/search",
-                params={"q": query, "type": "track,playlist", "limit": limit, "include_external": "audio"},
+                params={"q": query, "type": "track,playlist,album,artist", "limit": limit, "include_external": "audio"},
             )
             # best-effort: if unauthorized, refresh and retry once
             if resp2.status_code == 401:
@@ -103,7 +113,7 @@ async def search_global(query: str, limit: int = 10, token_override: Optional[st
                 async with await _authorized_client(token_override) as client3:
                     resp2 = await client3.get(
                         f"{SPOTIFY_API}/search",
-                        params={"q": query, "type": "track,playlist", "limit": limit, "include_external": "audio"},
+                        params={"q": query, "type": "track,playlist,album,artist", "limit": limit, "include_external": "audio"},
                     )
             resp2.raise_for_status()
             fallback_data = resp2.json()

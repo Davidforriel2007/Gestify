@@ -28,9 +28,9 @@ export function PlayerBar(props: {
   }
   return (
     <div className="sticky top-0 z-20 w-full border-b border-white/5 bg-surface-200/60 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4">
+      <div className="relative flex w-full h-16 items-center justify-between px-8">
         {/* Left: Playback controls */}
-        <div className="flex items-center justify-center space-x-4">
+        <div className="controls flex items-center gap-4 pl-6">
           <button
             onClick={onPrev}
             className="flex h-8 w-8 items-center justify-center p-1 text-white active:text-neutral-400"
@@ -72,9 +72,9 @@ export function PlayerBar(props: {
           </button>
         </div>
 
-        {/* Center: Album art + song info + progress */}
-        <div className="flex-1 flex items-center justify-center min-w-0">
-          <div className="mx-auto flex w-full max-w-[90%] sm:max-w-[600px] items-end space-x-3">
+        {/* Center: Album art + song info + progress (always visually centered) */}
+        <div className="now-playing absolute left-1/2 -translate-x-1/2 w-full max-w-[600px] flex justify-center">
+          <div className="mx-auto flex w-full items-end space-x-3">
             <div className="h-12 w-12 overflow-hidden rounded-md bg-white/10">
               {song?.coverUrl ? (
                 <img src={song.coverUrl} alt="cover" className="h-full w-full object-cover" />
@@ -99,7 +99,7 @@ export function PlayerBar(props: {
         </div>
 
         {/* Right: Gestures/login */}
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="right flex items-center gap-3 min-w-0 pr-6">
           {statusText && (
             <span className="hidden sm:block truncate text-xs text-neutral-400 max-w-[280px]">{statusText}</span>
           )}
