@@ -16,7 +16,7 @@ This project is in active development.
 
 ## Project Screen Shot(s)
 
-
+![Dashboard](https://github.com/Davidforriel2007/Gestify/blob/f9fc3bad519b1f2e35682e59c0f9582b519ca580/Screenshot%202025-10-29%20224206.png)
 
 ## Installation and Setup Instructions
 
